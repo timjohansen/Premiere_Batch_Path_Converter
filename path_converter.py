@@ -32,21 +32,51 @@ if os.path.isfile(config_filename):
 
 
 def apply_changes(filename, root_node, source_path, dest_path, source_os, dest_os, warning_window):
-    shutil.copy2(filename, filename + ".bak")
 
     # TODO: investigate this more. Is this actually that common?
     # TODO: figure out network share paths
     if (source_os == "win") and re.match("^.:\\\\", source_path):
-        old = "\\\\*" + source_path     # Ensures that any leading backslashes are included in the search.
+        source_path = "\\\\*" + source_path     # Ensures that any leading backslashes are included in the search.
+
+    overwrote = False
+    filetypes = [('Premiere project files', '*.prproj')]
+    new_filename = filedialog.asksaveasfilename(confirmoverwrite=True, filetypes=filetypes, defaultextension='.prproj')
+    if new_filename == "":
+        return
+    if new_filename == filename:
+        try:
+            shutil.copy2(filename, filename + ".bak")
+            overwrote = True
+        except PermissionError:
+            messagebox.showinfo("Error", "Attempted to create a backup file, but permission was denied. Aborting.")
+            warning_window.destroy()
+            return
+
 
     iterate(root_node, source_path, dest_path, source_os, dest_os, filename, read_only_mode=False)
-    with gzip.open(filename, 'wb') as f:
-        f.write(ET.tostring(root_node))
+    try:
+        with gzip.open(new_filename, 'wb') as f:
+            try:
+                f.write(ET.tostring(root_node))
+                if overwrote:
+                    messagebox.showinfo("Success",
+                                "File paths successfully altered. A backup of the original project file has been saved as "
+                                + pathlib.PurePath(filename).name + ".bak.")
+                else:
+                    messagebox.showinfo("Success", "File paths successfully altered.")
+            except Exception as err:
+                if overwrote:
+                    os.rename(filename + ".bak", filename)
+                messagebox.showinfo("Error", f"Unexpected {err=}, {type(err)=}")
 
-        messagebox.showinfo("Success",
-                            "File paths successfully altered. A backup of the original project file has been saved as "
-                            + pathlib.PurePath(filename).name + ".bak.")
-        warning_window.destroy()
+
+    except PermissionError:
+        messagebox.showinfo("Error", "Permission to write file was denied.")
+    except Exception as err:
+        messagebox.showinfo("Error", f"Unexpected {err=}, {type(err)=}")
+
+    warning_window.destroy()
+
     return
 
 
@@ -65,8 +95,6 @@ def iterate(node, source_path, dest_path, source_os, dest_os, project_file_path,
                 # Do the main FilePath replacement
                 path = next_node.text
                 if re.search(source_path, next_node.text):
-                    print(source_path)
-                    print(dest_path)
                     path = re.sub(source_path, dest_path, next_node.text, flags=re.IGNORECASE)
 
                 if dest_os == "win":
@@ -150,7 +178,7 @@ def open_project(source_path, dest_path, source_os, dest_os):
         try:
             file_content = f.read()
         except:
-            print("Could not read file")
+            messagebox.showinfo("Error", "Unable to decompress file")
             return
 
     root_node = ET.fromstring(file_content)
