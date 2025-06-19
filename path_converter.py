@@ -117,7 +117,7 @@ def iterate(node, source_path, dest_path, source_os, dest_os, project_file_path,
                             path = path[1:]
                         relative_path += str(path)
 
-                results += relative_path + "\n"
+                # results += relative_path + "\n"
 
                 # Change the RelativePath nodes.
                 rel_path_nodes = node.findall("RelativePath")
