@@ -42,6 +42,7 @@ def apply_changes(filename, root_node, source_path, dest_path, source_os, dest_o
     filetypes = [('Premiere project files', '*.prproj')]
     new_filename = filedialog.asksaveasfilename(confirmoverwrite=True, filetypes=filetypes, defaultextension='.prproj')
     if new_filename == "":
+        warning_window.destroy()
         return
     if new_filename == filename:
         try:
@@ -52,8 +53,8 @@ def apply_changes(filename, root_node, source_path, dest_path, source_os, dest_o
             warning_window.destroy()
             return
 
-
     iterate(root_node, source_path, dest_path, source_os, dest_os, filename, read_only_mode=False)
+
     try:
         with gzip.open(new_filename, 'wb') as f:
             try:
@@ -69,21 +70,20 @@ def apply_changes(filename, root_node, source_path, dest_path, source_os, dest_o
                     os.rename(filename + ".bak", filename)
                 messagebox.showinfo("Error", f"Unexpected {err=}, {type(err)=}")
 
-
     except PermissionError:
         messagebox.showinfo("Error", "Permission to write file was denied.")
     except Exception as err:
         messagebox.showinfo("Error", f"Unexpected {err=}, {type(err)=}")
 
     warning_window.destroy()
-
     return
 
 
 def iterate(node, source_path, dest_path, source_os, dest_os, project_file_path, read_only_mode):
+    # Recursively steps through each node of the project, looking for file paths.
+
     i = node.iter()
     next_node = next(i)
-
     results = ""
 
     while True:
@@ -99,28 +99,25 @@ def iterate(node, source_path, dest_path, source_os, dest_os, project_file_path,
 
                 if dest_os == "win":
                     path = re.sub(r"/", r"\\", path)
-                    # pure_path = pathlib.PureWindowsPath(path)
                 else:  # Mac
                     path = re.sub(r"\\", r"/", path)
-                    # pure_path = pathlib.PurePosixPath(path)
 
                 if path == next_node.text:
-                    # Nothing was changed, so move on to the next node
+                    # If nothing was changed, move on to the next node
                     continue
 
                 results += path + "\n"
                 if not read_only_mode:
                     next_node.text = path
 
-                # Change the ActualMediaFilePath nodes.
-                # I'm not sure what the purpose of this node is. Changing it or leaving it alone seems to
-                # have the same effect.
+                # Change any sibling ActualMediaFilePath nodes.
+                # I'm not sure what the purpose of this node is. Changing it doesn't seem to have any effect.
                 actual_path_nodes = node.findall("ActualMediaFilePath")
                 for apn in actual_path_nodes:
                     if not read_only_mode:
                         apn.text = path
 
-                # Generate the RelativePath
+                # Generate the RelativePath from the project file.
                 relative_path = ""
                 if dest_os == "win":
                     try:
@@ -145,9 +142,7 @@ def iterate(node, source_path, dest_path, source_os, dest_os, project_file_path,
                             path = path[1:]
                         relative_path += str(path)
 
-                # results += relative_path + "\n"
-
-                # Change the RelativePath nodes.
+                # Change any adjacent RelativePath nodes.
                 rel_path_nodes = node.findall("RelativePath")
                 for rpn in rel_path_nodes:
                     if not read_only_mode:
@@ -224,7 +219,7 @@ def browse_for_directory(source_or_dest, start_dir):
 
 
 root = Tk()
-root.title("Premiere Path Converter")
+root.title("Premiere Batch Path Converter")
 root.columnconfigure(0, weight=1)
 
 source_path = StringVar()
